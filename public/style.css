@@ -27,6 +27,24 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--copper) var(--paper-dark);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--copper);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--copper-dark);
 }
 
 body {
