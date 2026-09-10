@@ -35,6 +35,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <h1>OpenRouter Model Rankings</h1>
       <p class="subtitle">Pick the right model for the right task — at a glance.</p>
       <p class="meta">Last updated: <span id="last-updated">{last_updated}</span></p>
+      <p class="coverage-note" id="coverage-note"></p>
     </header>
 
     <section class="controls" aria-label="Filters">
@@ -90,7 +91,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <th data-sort="input_cost_per_1m" class="sortable">In $/M</th>
                 <th data-sort="output_cost_per_1m" class="sortable">Out $/M</th>
                 <th data-sort="speed_ms" class="sortable">Speed (ms)</th>
-                <th data-sort="value_score" class="sortable active-desc">Value</th>
+                <th data-sort="value_score" class="sortable active-desc" title="Normalized 0-100 cost/performance tradeoff within this task">Value (0-100)</th>
                 <th data-sort="context_length" class="sortable">Context</th>
                 <th>Features</th>
               </tr>

@@ -4,6 +4,9 @@
   const designArenaMeta = data.tasks.design_arena;
   const indexKeys = Object.keys(indicesMeta);
   const designKeys = Object.keys(designArenaMeta.models);
+  const arenasWithData =
+    (data.meta && data.meta.coverage && data.meta.coverage.arenas_with_data) || null;
+  const coverageNote = document.getElementById("coverage-note");
 
   const state = {
     arena: "models",
@@ -41,6 +44,13 @@
     if (n === 0) return "$0";
     if (n < 1) return "$" + n.toFixed(3);
     return "$" + n.toFixed(2);
+  }
+
+  function formatPerImage(n) {
+    if (n === null || n === undefined || Number.isNaN(n)) return "—";
+    if (n === 0) return "$0";
+    if (n < 0.01) return "$" + n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+    return "$" + n.toFixed(4);
   }
 
   function costClass(n) {
@@ -88,7 +98,7 @@
     return Math.max(0, Math.min(100, p || 0));
   }
 
-  function findBestQuality(items) {
+  function findBestOverall(items) {
     let best = null;
     for (const item of items) {
       if (!best || item.score > best.score) best = item;
@@ -112,22 +122,6 @@
       if (!best || item.speed_ms < best.speed_ms) best = item;
     }
     return best;
-  }
-
-  function summarizeCost(items) {
-    const inputs = items.map((i) => i.input_cost_per_1m).filter((v) => v !== null && v !== undefined);
-    const outputs = items.map((i) => i.output_cost_per_1m).filter((v) => v !== null && v !== undefined);
-    const minIn = inputs.length ? Math.min(...inputs) : null;
-    const maxIn = inputs.length ? Math.max(...inputs) : null;
-    const minOut = outputs.length ? Math.min(...outputs) : null;
-    const maxOut = outputs.length ? Math.max(...outputs) : null;
-    return { minIn, maxIn, minOut, maxOut };
-  }
-
-  function summarizeSpeed(items) {
-    const speeds = items.map((i) => i.speed_ms).filter((v) => v !== null && v !== undefined);
-    if (!speeds.length) return null;
-    return Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length);
   }
 
   function hasActiveFilters() {
@@ -167,23 +161,22 @@
         });
       }
 
-      const top = items[0] || null;
-      const bestQuality = findBestQuality(items);
+      const bestOverall = findBestOverall(items);
       const bestValue = findBestValue(items);
-      const bestSpeed = findFastest(items);
-      const costs = summarizeCost(items);
-      const avgSpeed = summarizeSpeed(items);
 
-      let html = `<h3>${label}</h3>`;
+      let html = `<h3>${escapeHtml(label)}</h3>`;
 
-      if (bestQuality) {
-        html += `
-          <div class="task-top">
-            <div class="task-top-label">Best Quality</div>
-            <div class="task-top-name">${escapeHtml(bestQuality.name)}</div>
-            <div class="task-top-meta">${formatMetric(bestQuality)} · p${formatPercentile(bestQuality.quality_percentile)} · ${formatCurrency(bestQuality.input_cost_per_1m)}/${formatCurrency(bestQuality.output_cost_per_1m)}</div>
-          </div>
-        `;
+      if (bestOverall) {
+        html += `<div class="task-featured">`;
+        if (bestValue && bestValue !== bestOverall) {
+          html += featuredModelHtml("Best Overall", "best-overall", bestOverall);
+          html += featuredModelHtml("Best Value", "best-value", bestValue);
+        } else if (bestValue) {
+          html += featuredModelHtml("Best Overall &amp; Best Value", "best-overall best-value", bestOverall);
+        } else {
+          html += featuredModelHtml("Best Overall", "best-overall", bestOverall);
+        }
+        html += `</div>`;
       } else if (allItems.length === 0) {
         html += `<div class="empty-state">No data for this arena</div>`;
       } else if (hasActiveFilters()) {
@@ -192,29 +185,38 @@
         html += `<div class="empty-state">No data available</div>`;
       }
 
-      html += `<div class="task-secondary">`;
-      if (bestValue && bestValue !== bestQuality) {
-        html += `<div class="task-secondary-item"><span>Best Value</span>${escapeHtml(bestValue.name)} (${formatCurrency(bestValue.input_cost_per_1m)}/${formatCurrency(bestValue.output_cost_per_1m)})</div>`;
-      }
-      if (bestSpeed) {
-        html += `<div class="task-secondary-item"><span>Fastest</span>${escapeHtml(bestSpeed.name)}</div>`;
-      }
-      if (avgSpeed !== null) {
-        html += `<div class="task-secondary-item ${speedClass(avgSpeed)}"><span>Avg Speed</span>${avgSpeed.toLocaleString()} ms</div>`;
-      }
-      if (costs.minIn !== null) {
-        html += `<div class="task-secondary-item"><span>Input Cost</span>${formatCurrency(costs.minIn)}–${formatCurrency(costs.maxIn)}/M</div>`;
-      }
-      html += `</div>`;
-
       card.innerHTML = html;
       taskCards.appendChild(card);
     }
   }
 
-  function formatPercentile(n) {
-    if (n === null || n === undefined || Number.isNaN(n)) return "—";
-    return `${Math.round(n)}th`;
+  function metricLabel(item) {
+    if (item.quality_metric === "elo") return "Elo";
+    return indicesMeta[item.quality_metric]?.label || item.quality_metric;
+  }
+
+  function modelStatsHtml(item) {
+    const pct = Math.round(clampPercentile(item.quality_percentile));
+    let rows = `<div class="featured-stat"><dt>${escapeHtml(metricLabel(item))}</dt><dd><span class="stat-value">${item.score}</span><span class="stat-sub">${pct}% pct</span></dd></div>`;
+    if (item.cost_basis === "per_image" && item.image_cost_per_image !== null && item.image_cost_per_image !== undefined) {
+      rows += `<div class="featured-stat"><dt>Image</dt><dd><span class="stat-value">${formatPerImage(item.image_cost_per_image)}</span><span class="stat-sub">per image</span></dd></div>`;
+    } else {
+      rows += `<div class="featured-stat"><dt>Input</dt><dd><span class="stat-value">${formatCurrency(item.input_cost_per_1m)}</span><span class="stat-sub">/M</span></dd></div>`;
+      rows += `<div class="featured-stat"><dt>Output</dt><dd><span class="stat-value">${formatCurrency(item.output_cost_per_1m)}</span><span class="stat-sub">/M</span></dd></div>`;
+    }
+    return `<dl class="featured-stats">${rows}</dl>`;
+  }
+
+  function featuredModelHtml(label, cls, item) {
+    const unmatched = item.catalog_matched === false;
+    return `
+      <div class="featured-model ${cls}">
+        <div class="featured-label">${label}</div>
+        <div class="featured-name" title="${escapeHtml(item.slug || "")}">${escapeHtml(item.name)}</div>
+        <div class="featured-provider">${escapeHtml(item.provider)}${unmatched ? " · unmatched benchmark entry" : ""}</div>
+        ${modelStatsHtml(item)}
+      </div>
+    `;
   }
 
   function formatMetric(item) {
@@ -279,18 +281,18 @@
     detailSubtitle.textContent = `${sorted.length} model${sorted.length === 1 ? "" : "s"}${arenaLabel}`;
 
     // Quick picks
-    const bestQuality = findBestQuality(sorted);
+    const bestOverall = findBestOverall(sorted);
     const bestValue = findBestValue(sorted);
     const bestSpeed = findFastest(sorted);
     quickPicks.innerHTML = "";
 
-    if (bestQuality) {
-      quickPicks.appendChild(createPickCard("Best Quality", bestQuality, "best-quality", "score"));
+    if (bestOverall) {
+      quickPicks.appendChild(createPickCard("Best Overall", bestOverall, "best-overall", "score"));
     }
-    if (bestValue && bestValue !== bestQuality) {
+    if (bestValue && bestValue !== bestOverall) {
       quickPicks.appendChild(createPickCard("Best Value", bestValue, "best-value", "value_score"));
     }
-    if (bestSpeed && bestSpeed !== bestQuality) {
+    if (bestSpeed && bestSpeed !== bestOverall) {
       quickPicks.appendChild(createPickCard("Fastest", bestSpeed, "fastest", "speed_ms"));
     }
 
@@ -315,7 +317,7 @@
         <td class="${costClass(item.input_cost_per_1m)}">${formatCurrency(item.input_cost_per_1m)}</td>
         <td class="${costClass(item.output_cost_per_1m)}">${formatCurrency(item.output_cost_per_1m)}</td>
         <td class="${speedClass(item.speed_ms)}">${item.speed_ms !== null && item.speed_ms !== undefined ? item.speed_ms.toLocaleString() : "—"}</td>
-        <td>${item.value_score !== null && item.value_score !== undefined ? item.value_score.toFixed(2) : "—"}</td>
+        <td>${item.value_score !== null && item.value_score !== undefined ? item.value_score.toFixed(1) : "—"}</td>
         <td>${item.context_length ? item.context_length.toLocaleString() : "—"}</td>
         <td>${featureBadges(item)}</td>
       `;
@@ -333,7 +335,7 @@
     if (highlightKey === "speed_ms") {
       valueStr = `${value.toLocaleString()} ms`;
     } else if (highlightKey === "value_score") {
-      valueStr = value.toFixed(2);
+      valueStr = value.toFixed(1);
     } else {
       valueStr = `${value}`;
     }
@@ -419,6 +421,37 @@
 
   closeDetail.addEventListener("click", closeDetailPanel);
 
+  function configureArenaOptions() {
+    if (arenasWithData) {
+      Array.from(arenaSelect.options).forEach((opt) => {
+        const has = arenasWithData.indexOf(opt.value) !== -1;
+        opt.disabled = !has;
+        if (!has && !/\(no data\)$/.test(opt.textContent)) {
+          opt.textContent = opt.textContent + " (no data)";
+        }
+      });
+      if (arenasWithData.indexOf(state.arena) === -1 && arenasWithData.length) {
+        state.arena = arenasWithData[0];
+        arenaSelect.value = state.arena;
+      }
+    }
+    renderCoverageNote();
+  }
+
+  function renderCoverageNote() {
+    if (!coverageNote) return;
+    const aa = data.meta && data.meta.coverage && data.meta.coverage.artificial_analysis;
+    if (!aa) return;
+    const matched = (aa.matched_exact || 0) + (aa.matched_alias || 0) + (aa.synthesized || 0);
+    coverageNote.textContent =
+      "Rankings include " +
+      matched +
+      " of " +
+      aa.rows +
+      " Artificial Analysis rows matched to the OpenRouter catalog. Models without published benchmark data are not ranked.";
+  }
+
   // Initialize
+  configureArenaOptions();
   renderTaskGrid();
 })();
