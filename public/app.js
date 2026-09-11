@@ -190,14 +190,10 @@
     }
   }
 
-  function metricLabel(item) {
-    if (item.quality_metric === "elo") return "Elo";
-    return indicesMeta[item.quality_metric]?.label || item.quality_metric;
-  }
-
   function modelStatsHtml(item) {
     const pct = Math.round(clampPercentile(item.quality_percentile));
-    let rows = `<div class="featured-stat"><dt>${escapeHtml(metricLabel(item))}</dt><dd><span class="stat-value">${item.score}</span><span class="stat-sub">${pct}% pct</span></dd></div>`;
+    const qualityLabel = item.quality_metric === "elo" ? "Elo" : "Score";
+    let rows = `<div class="featured-stat"><dt>${qualityLabel}</dt><dd><span class="stat-value">${item.score}</span><span class="stat-sub">${pct}% pct</span></dd></div>`;
     if (item.cost_basis === "per_image" && item.image_cost_per_image !== null && item.image_cost_per_image !== undefined) {
       rows += `<div class="featured-stat"><dt>Image</dt><dd><span class="stat-value">${formatPerImage(item.image_cost_per_image)}</span><span class="stat-sub">per image</span></dd></div>`;
     } else {

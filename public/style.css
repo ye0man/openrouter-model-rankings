@@ -344,6 +344,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
   border-top: 1px dotted rgba(61, 74, 82, 0.18);
   padding-top: 0.3rem;
@@ -355,7 +356,8 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--slate);
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .featured-stat dd {
@@ -364,7 +366,8 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.78rem;
   color: var(--ink);
   text-align: right;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .featured-stat .stat-value {
